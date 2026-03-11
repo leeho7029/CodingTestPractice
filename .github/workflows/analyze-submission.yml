@@ -1,0 +1,87 @@
+name: Analyze BaekjoonHub Submission
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - '**.java'
+      - '**.py'
+      - '**.cpp'
+      - '**.c'
+      - '**.js'
+      - '**.ts'
+
+jobs:
+  analyze-code:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Get Changed Files
+        id: changed-files
+        uses: tj-actions/changed-files@v44
+        with:
+          files: |
+            **.java
+            **.py
+            **.cpp
+            **.c
+            **.js
+            **.ts
+
+      - name: Send Data to Analysis Server
+        if: steps.changed-files.outputs.any_changed == 'true'
+        env:
+          ALL_CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
+          SERVER_URL: ${{ secrets.ANALYSIS_SERVER_URL }}
+          API_KEY: ${{ secrets.ANALYSIS_API_KEY }}
+        run: |
+          python3 -c "
+          import os
+          import json
+          import urllib.request
+          import urllib.error
+
+          files = os.environ.get('ALL_CHANGED_FILES', '').split()
+          server_url = os.environ.get('SERVER_URL')
+          api_key = os.environ.get('API_KEY')
+
+          if not server_url:
+              print('::error::SERVER_URL secret is not set.')
+              exit(1)
+
+          for file_path in files:
+              if not os.path.exists(file_path):
+                  continue
+
+              try:
+                  with open(file_path, 'r', encoding='utf-8') as f:
+                      source_code = f.read()
+
+                  is_success = 'failed' not in file_path
+
+                  payload = {
+                      'filePath': file_path,
+                      'fileName': os.path.basename(file_path),
+                      'sourceCode': source_code,
+                      'isSuccess': is_success
+                  }
+                  
+                  json_data = json.dumps(payload).encode('utf-8')
+
+                  req = urllib.request.Request(server_url, data=json_data, method='POST')
+                  req.add_header('Content-Type', 'application/json')
+                  if api_key:
+                      req.add_header('x-api-key', api_key)
+
+                  with urllib.request.urlopen(req) as response:
+                      print(f'[SUCCESS] Sent {file_path}: Status {response.getcode()}')
+
+              except urllib.error.HTTPError as e:
+                  print(f'::error::[FAILED] Sending {file_path}: {e.code} - {e.reason}')
+              except Exception as e:
+                  print(f'::error::[ERROR] Processing {file_path}: {e}')
+          "
