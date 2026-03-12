@@ -23,7 +23,7 @@ public class Main{
             for(int j = 0; j < n -i ; j++){
                 bw.write(" ");
             }
-            for(int l = 0; l < 2*i -1 ; l++){
+            for(int l = 0; l < 2*n -1 ; l++){
                 bw.write("*");
             }
             for(int k = 0; k < n -i ; k++){
